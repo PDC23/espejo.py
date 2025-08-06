@@ -20,6 +20,7 @@ def capturar_energia_economica(api_key):
         data, _ = fe.get_currency_exchange_rate(from_currency='EUR', to_currency='USD')
         return float(data['5. Exchange Rate'])
     except Exception as e:
+        st.error(f"Error al contactar API de Alpha Vantage: {e}")
         return 0
 
 def sintetizar_realidad(api_key, api_secret, access_token, access_secret, intencion):
@@ -67,7 +68,8 @@ def sintetizar_realidad(api_key, api_secret, access_token, access_secret, intenc
         return {"sistemico": resultado_sistemico, "organico": resultado_organico, "contaminacion": indice_contaminacion}
 
     except Exception as e:
-        return {"sistemico": {"entidades": [f"Error: {e}"], "polaridad": 0}, "organico": {"entidades": ["Error"], "polaridad": 0}, "contaminacion": -1}
+        st.error(f"Error al contactar API de Twitter/X: {e}")
+        return {"sistemico": {"entidades": ["Error"], "polaridad": 0}, "organico": {"entidades": ["Error"], "polaridad": 0}, "contaminacion": -1}
 
 # --- INTERFAZ ---
 st.set_page_config(page_title="Oráculo Sincrónico", layout="wide")
@@ -77,16 +79,18 @@ intencion_usuario = st.text_input("Define tu intención o el concepto a sintoniz
 
 if st.button("Sintonizar"):
     with st.spinner("Aplicando filtro de realidad..."):
-        # Recuperar claves
+        # Recuperar claves de los secrets de Streamlit
         ALPHA_VANTAGE_API_KEY = st.secrets["alpha_vantage_key"]
         TWITTER_API_KEY = st.secrets["twitter_api_key"]
         TWITTER_API_SECRET = st.secrets["twitter_api_key_secret"]
         TWITTER_ACCESS_TOKEN = st.secrets["twitter_access_token"]
         TWITTER_ACCESS_SECRET = st.secrets["twitter_access_token_secret"]
         
+        # Capturar y sintetizar datos
         energia_economica = capturar_energia_economica(ALPHA_VANTAGE_API_KEY)
         resultado_sintesis = sintetizar_realidad(TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET, intencion_usuario)
         
+        # Presentar el diagnóstico
         st.header("Diagnóstico del Sintetizador")
         st.metric(label="Energía Económica (EUR/USD)", value=f"{energia_economica:.4f}")
         st.metric(label="Índice de Contaminación Sistémica", value=f"{resultado_sintesis['contaminacion']:.2f}%")
