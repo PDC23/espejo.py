@@ -1,6 +1,5 @@
 import streamlit as st
 import requests
-import math
 import tweepy
 import pandas as pd
 import spacy
