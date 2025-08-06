@@ -1,5 +1,5 @@
 streamlit
 requests
-tweepy
 alpha-vantage
-textblob
+pandas
+pytrends
