@@ -2,3 +2,4 @@ streamlit
 alpha_vantage
 tweepy
 requests
+textblob
