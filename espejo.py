@@ -2,9 +2,10 @@ import streamlit as st
 import requests
 import math
 import tweepy
+import pandas as pd
 from collections import Counter
 from alpha_vantage.foreignexchange import ForeignExchange
-from textblob import TextBlob # Necesitaremos TextBlob para el análisis de sentimiento
+from textblob import TextBlob
 
 # --- PASO 1: DEFINICIÓN DE FUNCIONES (El Cerebro) ---
 
@@ -41,32 +42,45 @@ def capturar_energia_economica(api_key):
     except Exception as e:
         return 0
 
-# --- NUEVA FUNCIÓN ---
-# Función para capturar y analizar el sentimiento social
+# --- FUNCIÓN ACTUALIZADA ---
+# Ahora devuelve un desglose, no un solo número
 def capturar_sentimiento_social(api_key, api_secret, access_token, access_secret, intencion):
     try:
         auth = tweepy.OAuth1UserHandler(api_key, api_secret, access_token, access_secret)
         api = tweepy.API(auth)
         
-        # Buscamos tweets recientes en español que contengan la "intención"
         tweets = api.search_tweets(q=intencion, lang="es", count=100, tweet_mode="extended")
         
-        texto_tweets = " ".join(tweet.full_text for tweet in tweets)
+        if not tweets:
+            return {"positivo": 0, "negativo": 0, "neutral": 100}
+
+        positivo_count = 0
+        negativo_count = 0
+        neutral_count = 0
+
+        for tweet in tweets:
+            analisis = TextBlob(tweet.full_text)
+            if analisis.sentiment.polarity > 0.05: # Umbral para considerar positivo
+                positivo_count += 1
+            elif analisis.sentiment.polarity < -0.05: # Umbral para considerar negativo
+                negativo_count += 1
+            else:
+                neutral_count += 1
         
-        # Analizamos el sentimiento del texto compilado
-        analisis = TextBlob(texto_tweets)
-        return analisis.sentiment.polarity # Devuelve un valor entre -1 (muy negativo) y 1 (muy positivo)
+        total = len(tweets)
+        return {
+            "positivo": (positivo_count / total) * 100,
+            "negativo": (negativo_count / total) * 100,
+            "neutral": (neutral_count / total) * 100
+        }
     except Exception as e:
-        return 0
+        return {"positivo": 0, "negativo": 0, "neutral": 100} # Devuelve neutralidad en caso de error
 
 # --- PASO 2: CONFIGURACIÓN DE LA INTERFAZ ---
 
 st.set_page_config(page_title="Oráculo Sincrónico", layout="wide")
 st.title("Oráculo Sincrónico")
-
-# --- NUEVO ELEMENTO DE INTERFAZ ---
-# Campo de texto para que el usuario defina su intención
-intencion_usuario = st.text_input("Define tu intención o el concepto a sintonizar:", "esperanza")
+intencion_usuario = st.text_input("Define tu intención o el concepto a sintonizar:", "futuro")
 
 # --- PASO 3: EL PROCESO DE SINTONIZACIÓN ---
 
@@ -79,7 +93,7 @@ if st.button("Sintonizar"):
 if st.session_state.sintonizado:
     with st.spinner("Sintonizando con los flujos de datos..."):
         
-        # Recuperar todas las claves de los secrets
+        # Recuperar las claves
         ALPHA_VANTAGE_API_KEY = st.secrets["alpha_vantage_key"]
         TWITTER_API_KEY = st.secrets["twitter_api_key"]
         TWITTER_API_SECRET = st.secrets["twitter_api_key_secret"]
@@ -89,21 +103,30 @@ if st.session_state.sintonizado:
         # Capturar los datos
         ruido_wiki = capturar_ruido_linguistico()
         ruido_forex = capturar_energia_economica(ALPHA_VANTAGE_API_KEY)
-        sentimiento_social = capturar_sentimiento_social(TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET, intencion_usuario)
+        distribucion_sentimiento = capturar_sentimiento_social(TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET, intencion_usuario)
         
         # Procesar con el Sintetizador
         entropia_linguistica = calcular_entropia(ruido_wiki)
         energia_economica = ruido_forex
         
-        # Presentar el Diagnóstico
-        st.subheader("Diagnóstico del Sintetizador - Nivel 2")
-        col1, col2, col3 = st.columns(3)
+        # --- PRESENTACIÓN ACTUALIZADA ---
+        st.subheader("Diagnóstico del Sintetizador - Nivel 3")
+        col1, col2 = st.columns(2)
         
         with col1:
             st.metric(label="Complejidad Lingüística (Entropía)", value=f"{entropia_linguistica:.4f} bits")
         with col2:
             st.metric(label="Energía Económica (EUR/USD)", value=f"{energia_economica:.4f}")
-        with col3:
-            st.metric(label="Sentimiento Social (Polaridad)", value=f"{sentimiento_social:.4f}")
 
+        st.subheader("Distribución del Sentimiento Social")
+        
+        # Crear un DataFrame para la gráfica
+        sentimiento_df = pd.DataFrame({
+            'Sentimiento': ['Positivo', 'Negativo', 'Neutral'],
+            'Porcentaje': [distribucion_sentimiento['positivo'], distribucion_sentimiento['negativo'], distribucion_sentimiento['neutral']]
+        })
+        
+        # Mostrar gráfica de barras
+        st.bar_chart(sentimiento_df.set_index('Sentimiento'))
+        
         st.success("Sintonización completada.")
