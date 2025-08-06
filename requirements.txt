@@ -6,3 +6,4 @@ textblob
 pandas
 scikit-learn
 spacy
+textstat
