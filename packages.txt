@@ -1,2 +1,1 @@
 es_core_news_sm
-```3.  Guarda el archivo. Streamlit automáticamente detectará este archivo y descargará el modelo de lenguaje en español que necesitamos.
