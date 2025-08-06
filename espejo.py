@@ -1,8 +1,8 @@
 import streamlit as st
 import requests
-import tweepy
 from alpha_vantage.foreignexchange import ForeignExchange
-from textblob import TextBlob
+import pandas as pd
+from pytrends.request import TrendReq
 
 # --- DEFINICIÓN DE FUNCIONES ---
 def capturar_energia_economica(api_key):
@@ -14,49 +14,56 @@ def capturar_energia_economica(api_key):
         st.error(f"Error al contactar API de Alpha Vantage: {e}")
         return 0
 
-def sintetizar_sentimiento(api_key, api_secret, access_token, access_secret, intencion):
+# --- NUEVA FUNCIÓN ---
+# Mide el interés colectivo en conceptos relacionados
+def sintetizar_interes_colectivo(intencion):
     try:
-        auth = tweepy.OAuth1UserHandler(api_key, api_secret, access_token, access_secret)
-        api = tweepy.API(auth, wait_on_rate_limit=True)
+        pytrends = TrendReq(hl='es-MX', tz=360)
         
-        tweets = api.search_tweets(q=f"{intencion} -is:retweet", lang="es", count=100, tweet_mode="extended")
+        # Comparamos la intención principal con dos conceptos relacionados
+        kw_list = [intencion, "incertidumbre", "oportunidad"]
+        pytrends.build_payload(kw_list, cat=0, timeframe='now 1-d', geo='MX', gprop='')
         
-        if not tweets:
-            return 0 # Retorna neutralidad si no hay tweets
-        
-        texto_completo = " ".join(tweet.full_text for tweet in tweets)
-        analisis = TextBlob(texto_completo)
-        return analisis.sentiment.polarity
-        
+        # Obtenemos el interés a lo largo del último día
+        interest_over_time_df = pytrends.interest_over_time()
+
+        if interest_over_time_df.empty:
+            return pd.DataFrame({'Concepto': ['Sin Datos'], 'Interés': [0]})
+
+        # Devolvemos el promedio de interés para cada concepto
+        avg_interest = interest_over_time_df.mean().reset_index()
+        avg_interest.columns = ['Concepto', 'Interés']
+        return avg_interest
+
     except Exception as e:
-        st.error(f"Error al contactar API de Twitter/X: {e}")
-        return 0
+        st.error(f"Error al contactar Google Trends: {e}")
+        return pd.DataFrame({'Concepto': ['Error'], 'Interés': [0]})
+
 
 # --- INTERFAZ ---
 st.set_page_config(page_title="Oráculo Sincrónico", layout="wide")
 st.title("Oráculo Sincrónico")
-st.subheader("Sintetizador de Sentimiento") # <-- CORRECCIÓN APLICADA
+st.subheader("Sintetizador de Interés Colectivo")
 intencion_usuario = st.text_input("Define tu intención o el concepto a sintonizar:", "futuro")
 
 if st.button("Sintonizar"):
-    with st.spinner("Sintonizando y sintetizando sentimiento..."):
+    with st.spinner("Sintonizando y sintetizando interés colectivo..."):
         # Recuperar claves
         ALPHA_VANTAGE_API_KEY = st.secrets["alpha_vantage_key"]
-        TWITTER_API_KEY = st.secrets["twitter_api_key"]
-        TWITTER_API_SECRET = st.secrets["twitter_api_key_secret"]
-        TWITTER_ACCESS_TOKEN = st.secrets["twitter_access_token"]
-        TWITTER_ACCESS_SECRET = st.secrets["twitter_access_token_secret"]
         
         # Capturar y sintetizar datos
         energia_economica = capturar_energia_economica(ALPHA_VANTAGE_API_KEY)
-        sentimiento_social = sintetizar_sentimiento(TWITTER_API_KEY, TWITTER_API_SECRET, TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET, intencion_usuario)
+        interes_colectivo_df = sintetizar_interes_colectivo(intencion_usuario)
         
         # Presentar el diagnóstico
         st.header("Diagnóstico del Sintetizador")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric(label="Energía Económica (EUR/USD)", value=f"{energia_economica:.4f}")
-        with col2:
-            st.metric(label="Sentimiento Social (Polaridad)", value=f"{sentimiento_social:.4f}")
+        st.metric(label="Energía Económica (EUR/USD)", value=f"{energia_economica:.4f}")
+
+        st.subheader("Distribución del Interés Colectivo (Últimas 24h en México)")
+        
+        if not interes_colectivo_df.empty and 'isPartial' in interes_colectivo_df.columns:
+             interes_colectivo_df = interes_colectivo_df.drop(columns=['isPartial'])
+
+        st.bar_chart(interes_colectivo_df.set_index('Concepto'))
             
         st.success("Sintonización completada.")
