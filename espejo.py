@@ -35,7 +35,7 @@ def sintetizar_sentimiento(api_key, api_secret, access_token, access_secret, int
 # --- INTERFAZ ---
 st.set_page_config(page_title="Oráculo Sincrónico", layout="wide")
 st.title("Oráculo Sincrónico")
-st.subheader("Sintetizador de Sentimiento - Nivel 3")
+st.subheader("Sintetizador de Sentimiento") # <-- CORRECCIÓN APLICADA
 intencion_usuario = st.text_input("Define tu intención o el concepto a sintonizar:", "futuro")
 
 if st.button("Sintonizar"):
