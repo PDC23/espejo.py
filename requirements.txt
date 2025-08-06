@@ -3,3 +3,4 @@ alpha_vantage
 tweepy
 requests
 textblob
+pandas
